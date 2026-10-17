@@ -20,8 +20,16 @@ def:pub app() -> JsxElement {
         login_message: str = "",
         registering: bool = False,
         auth_busy: bool = False,
-        authenticated: bool = False;
+        authenticated: bool = False,
+        selected_seat: int = 0,
+        bookings: list[str] = [],
+        confirm_logout: bool = False,
+        fare_class: str = "A/C Luxury";
     active_style = "bg-primary text-primary-foreground shadow-sm" if active == "Timetables" else "text-muted-foreground hover:bg-muted";
+    fare_style = "bg-primary text-primary-foreground shadow-sm" if active == "Fares" else "text-muted-foreground hover:bg-muted";
+    planner_style = "bg-primary text-primary-foreground shadow-sm" if active == "Trip planner" else "text-muted-foreground hover:bg-muted";
+    booking_style = "bg-primary text-primary-foreground shadow-sm" if active == "Book a seat" else "text-muted-foreground hover:bg-muted";
+    bookings_style = "bg-primary text-primary-foreground shadow-sm" if active == "My bookings" else "text-muted-foreground hover:bg-muted";
     show_normal = service == "All services" or service == "Normal";
     show_semi = service == "All services" or service == "Semi-Luxury";
     show_ac = service == "All services" or service == "A/C Luxury";
@@ -32,6 +40,21 @@ def:pub app() -> JsxElement {
     def choose_service(e: ChangeEvent) { service = e.target.value; }
     def choose_route(e: ChangeEvent) { selected_route = e.target.value; }
     def choose_date(e: ChangeEvent) { departure_date = e.target.value; }
+    def choose_fare_class(e: ChangeEvent) { fare_class = e.target.value; }
+    def choose_seat(n: int) { selected_seat = n; }
+    def confirm_booking(e: FormEvent) {
+        e.preventDefault();
+        if passenger.strip() == "" { notice = "Enter the passenger name to continue."; }
+        elif selected_seat == 0 { notice = "Choose a seat before confirming."; }
+        else {
+            bookings = bookings + [selected_route + " · " + from_stop + " to " + to_stop + " · Seat " + str(selected_seat) + " · " + passenger.strip() + " · " + departure_date];
+            notice = "Sample booking saved for seat " + str(selected_seat) + ".";
+            active = "My bookings";
+            selected_seat = 0;
+            passenger = "";
+        }
+    }
+    def pick_seat(n: int) { selected_seat = n; notice = "Seat " + str(n) + " selected."; }
     def enter_passenger(e: ChangeEvent) { passenger = e.target.value; }
     def enter_username(e: ChangeEvent) { username = e.target.value; }
     def enter_password(e: ChangeEvent) { password = e.target.value; }
@@ -79,13 +102,20 @@ def:pub app() -> JsxElement {
         }
     }
 
-    def logout_user(e: MouseEvent) {
+    def logout_user(e: MouseEvent) { confirm_logout = True; }
+    def cancel_logout(e: MouseEvent) { confirm_logout = False; }
+    def confirm_logout_now(e: MouseEvent) {
         jacLogout();
         authenticated = False;
+        confirm_logout = False;
         username = "";
         password = "";
         login_message = "You have signed out.";
+        show_login = False;
     }
+    distance = 116 if selected_route.startswith("01") else 160 if selected_route.startswith("02") else 127 if selected_route.startswith("EX1") else 205 if selected_route.startswith("15") else 396 if selected_route.startswith("87") else 77;
+    kms = distance if stops.index(from_stop) < stops.index(to_stop) else distance / 2;
+    fare_value = int(kms * 6) if fare_class == "A/C Luxury" else int(kms * 4.5) if fare_class == "Semi-Luxury" else int(kms * 3) if fare_class == "Normal" else int(kms * 8);
 
     return <div className="min-h-screen bg-muted/40 text-foreground">
         <header className="sticky top-0 z-20 border-b bg-card/95 shadow-sm backdrop-blur">
@@ -95,6 +125,9 @@ def:pub app() -> JsxElement {
                     <span><strong className="block text-lg leading-tight tracking-tight">Gamana</strong><small className="text-xs text-muted-foreground">Sri Lanka bus guide</small></span>
                 </a>
                 <div className="ml-auto flex items-center gap-3">
+                    {confirm_logout and <span className="text-sm font-medium">Sign out of Gamana?</span>}
+                    {confirm_logout and <button className="rounded-lg border px-3 py-2 text-sm" onClick={cancel_logout}>Stay signed in</button>}
+                    {confirm_logout and <button className="rounded-lg bg-destructive px-3 py-2 text-sm font-semibold text-destructive-foreground" onClick={confirm_logout_now}>Confirm logout</button>}
                     {if authenticated {
                         <span className="hidden text-sm text-muted-foreground sm:inline">Signed in as {username}</span>
                         <button className="whitespace-nowrap rounded-lg border px-3 py-2 text-sm font-medium hover:bg-muted" onClick={logout_user}>Log out</button>
@@ -105,10 +138,10 @@ def:pub app() -> JsxElement {
                 </div>
                 <nav className="flex w-full gap-1 overflow-x-auto pb-1 sm:ml-auto sm:w-auto" aria-label="Bus guide sections">
                     <button className={"rounded-lg px-3 py-2 text-sm font-medium " + active_style} onClick={lambda { switch_to("Timetables"); }}>Timetables</button>
-                    <button className="rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted" onClick={lambda { switch_to("Fares"); }}>Fares</button>
-                    <button className="rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted" onClick={lambda { switch_to("Trip planner"); }}>Trip planner</button>
-                    <button className="rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted" onClick={lambda { switch_to("Book a seat"); }}>Book a seat</button>
-                    <button className="rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted" onClick={lambda { switch_to("My bookings"); }}>My bookings</button>
+                    <button className={"rounded-lg px-3 py-2 text-sm font-medium " + fare_style} onClick={lambda { switch_to("Fares"); }}>Fares</button>
+                    <button className={"rounded-lg px-3 py-2 text-sm font-medium " + planner_style} onClick={lambda { switch_to("Trip planner"); }}>Trip planner</button>
+                    <button className={"rounded-lg px-3 py-2 text-sm font-medium " + booking_style} onClick={lambda { switch_to("Book a seat"); }}>Book a seat</button>
+                    <button className={"rounded-lg px-3 py-2 text-sm font-medium " + bookings_style} onClick={lambda { switch_to("My bookings"); }}>My bookings</button>
                 </nav>
             </div>
         </header>
@@ -138,6 +171,31 @@ def:pub app() -> JsxElement {
                         </form>
                     </div>
                 </section>
+            } elif active == "Fares" {
+                <section className="flex flex-col gap-5">
+                    <div><h2 className="text-xl font-semibold">Fare estimator</h2><p className="text-sm text-muted-foreground">Estimate your fare by route, stops and service class.</p></div>
+                    <div className="grid gap-4 rounded-xl border bg-card p-5 shadow-sm sm:grid-cols-2 lg:grid-cols-4">
+                        <label className="flex flex-col gap-2 text-sm font-medium">Route<select className="h-10 rounded-md border border-input bg-background px-3 font-normal" value={selected_route} onChange={choose_route}>{for (i, route) in enumerate(route_names) { <option key={str(i)} value={route}>{route}</option> }}</select></label>
+                        <label className="flex flex-col gap-2 text-sm font-medium">From<select className="h-10 rounded-md border border-input bg-background px-3 font-normal" value={from_stop} onChange={choose_from}>{for (i, stop) in enumerate(stops) { <option key={str(i)} value={stop}>{stop}</option> }}</select></label>
+                        <label className="flex flex-col gap-2 text-sm font-medium">To<select className="h-10 rounded-md border border-input bg-background px-3 font-normal" value={to_stop} onChange={choose_to}>{for (i, stop) in enumerate(stops) { <option key={str(i)} value={stop}>{stop}</option> }}</select></label>
+                        <label className="flex flex-col gap-2 text-sm font-medium">Service class<select className="h-10 rounded-md border border-input bg-background px-3 font-normal" value={fare_class} onChange={choose_fare_class}>{for (i, svc) in enumerate(bus_services) { <option key={str(i)} value={svc}>{svc}</option> }}</select></label>
+                    </div>
+                    <article className="rounded-xl border bg-card p-6 shadow-sm"><p className="text-sm text-muted-foreground">Estimated one-way fare</p><p className="mt-2 text-4xl font-semibold tabular-nums">Rs. {str(fare_value)}</p><p className="mt-2 text-sm text-muted-foreground">{from_stop} to {to_stop} · approx. {str(kms)} km · {fare_class}</p></article>
+                    <p className="text-xs text-muted-foreground">Estimate only. Confirm fares with NTC or SLTB before travelling.</p>
+                </section>
+            } elif active == "Trip planner" {
+                <section className="grid gap-5 lg:grid-cols-[1fr_0.9fr]">
+                    <div className="rounded-xl border bg-card p-5 shadow-sm"><h2 className="text-xl font-semibold">Plan your trip</h2><p className="mt-1 text-sm text-muted-foreground">Choose an origin and destination for a suggested sample itinerary.</p><div className="mt-5 grid gap-4 sm:grid-cols-2"><label className="flex flex-col gap-2 text-sm font-medium">From<select className="h-10 rounded-md border border-input bg-background px-3" value={from_stop} onChange={choose_from}>{for (i, stop) in enumerate(stops) { <option key={str(i)} value={stop}>{stop}</option> }}</select></label><label className="flex flex-col gap-2 text-sm font-medium">To<select className="h-10 rounded-md border border-input bg-background px-3" value={to_stop} onChange={choose_to}>{for (i, stop) in enumerate(stops) { <option key={str(i)} value={stop}>{stop}</option> }}</select></label><label className="flex flex-col gap-2 text-sm font-medium">Travel date<input className="h-10 rounded-md border border-input bg-background px-3" type="date" value={departure_date} onChange={choose_date} /></label></div><button className="mt-5 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground" onClick={lambda { notice = "Journey updated for " + from_stop + " to " + to_stop + "."; }}>Show itinerary</button></div>
+                    <article className="rounded-xl border bg-card p-5 shadow-sm"><h2 className="text-lg font-semibold">Suggested itinerary</h2><p className="mt-1 text-sm text-muted-foreground">Route 01 · sample schedule</p><div className="mt-5 flex flex-col gap-5 border-l-2 border-primary/30 pl-5"><div><strong>{from_stop}</strong><p className="text-xs text-muted-foreground">Depart 05:00</p></div><div><strong>Direct bus</strong><p className="text-xs text-muted-foreground">Estimated journey time 3h 30m</p></div><div><strong>{to_stop}</strong><p className="text-xs text-muted-foreground">Arrive 08:30 · from Rs. 350</p></div></div></article>
+                    {if notice != "" { <p className="rounded-lg bg-primary/10 p-3 text-sm text-primary" role="status">{notice}</p> }}
+                </section>
+            } elif active == "Book a seat" {
+                <section className="grid gap-5 lg:grid-cols-[1fr_0.8fr]">
+                    <form className="rounded-xl border bg-card p-5 shadow-sm" onSubmit={confirm_booking}><h2 className="text-xl font-semibold">Reserve a seat</h2><p className="mt-1 text-sm text-muted-foreground">Select a trip and seat, then save a sample booking.</p><div className="mt-5 flex flex-col gap-4"><label className="flex flex-col gap-2 text-sm font-medium">Route<select className="h-10 rounded-md border border-input bg-background px-3 font-normal" value={selected_route} onChange={choose_route}>{for (i, route) in enumerate(route_names) { <option key={str(i)} value={route}>{route}</option> }}</select></label><label className="flex flex-col gap-2 text-sm font-medium">From<select className="h-10 rounded-md border border-input bg-background px-3" value={from_stop} onChange={choose_from}>{for (i, stop) in enumerate(stops) { <option key={str(i)} value={stop}>{stop}</option> }}</select></label><label className="flex flex-col gap-2 text-sm font-medium">To<select className="h-10 rounded-md border border-input bg-background px-3" value={to_stop} onChange={choose_to}>{for (i, stop) in enumerate(stops) { <option key={str(i)} value={stop}>{stop}</option> }}</select></label><label className="flex flex-col gap-2 text-sm font-medium">Travel date<input className="h-10 rounded-md border border-input bg-background px-3" type="date" value={departure_date} onChange={choose_date} /></label><label className="flex flex-col gap-2 text-sm font-medium">Passenger name<input className="h-10 rounded-md border border-input bg-background px-3" placeholder="Passenger full name" value={passenger} onChange={enter_passenger} /></label><button className="rounded-md bg-primary px-4 py-2.5 font-semibold text-primary-foreground" type="submit">Confirm booking</button>{if notice != "" { <p className="rounded-lg bg-primary/10 p-3 text-sm text-primary" role="status">{notice}</p> }}</div></form>
+                    <article className="rounded-xl border bg-card p-5 shadow-sm"><h2 className="text-lg font-semibold">Choose your seat</h2><p className="mt-1 text-sm text-muted-foreground">Selected seat: {str(selected_seat) if selected_seat > 0 else "None"}</p><div className="mt-5 grid grid-cols-4 gap-3">{for seat_no in range(1, 17) { <button key={str(seat_no)} className="aspect-square rounded-lg border bg-background text-sm font-semibold hover:border-primary" type="button" onClick={lambda { pick_seat(seat_no); }}>{str(seat_no)}</button> }}</div><p className="mt-4 text-xs text-muted-foreground">Sample reservation only. No payment is taken.</p></article>
+                </section>
+            } elif active == "My bookings" {
+                <section className="rounded-xl border bg-card p-5 shadow-sm"><h2 className="text-xl font-semibold">My bookings</h2><p className="mt-1 text-sm text-muted-foreground">Sample bookings saved in this session.</p>{if len(bookings) == 0 { <p className="mt-5 rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">No bookings saved yet. Make a seat reservation to see it here.</p> }}{if len(bookings) > 0 { <div className="mt-5 flex flex-col gap-3">{for (i, booking) in enumerate(bookings) { <article key={str(i)} className="rounded-lg border bg-background p-4 text-sm">{booking}</article> }}</div> }}</section>
             } else {
             <section className="flex flex-col gap-5">
                 <div><h2 className="text-xl font-semibold tracking-tight">Find a bus</h2><p className="text-sm text-muted-foreground">Browse service options, departure times and estimated fares.</p></div>
