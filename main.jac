@@ -1,4 +1,5 @@
 import ".styles.global.css";
+import from "@jac/runtime" { jacLogin, jacSignup, jacLogout, jacIsLoggedIn }
 
 glob route_names: list[str] = ["01 · Colombo – Kandy", "02 · Colombo – Matara", "EX1 · Makumbura – Matara Expressway", "138 · Colombo – Makumbura", "15 · Colombo – Anuradhapura", "87 · Colombo – Jaffna", "43 · Kandy – Nuwara Eliya"];
 glob stops: list[str] = ["Colombo (Pettah)", "Kandy", "Matara", "Galle", "Makumbura (Kottawa)", "Anuradhapura", "Jaffna", "Nuwara Eliya", "Kadawatha", "Nittambuwa", "Kurunegala", "Peradeniya"];
@@ -16,7 +17,10 @@ def:pub app() -> JsxElement {
         username: str = "",
         password: str = "",
         show_login: bool = False,
-        login_message: str = "";
+        login_message: str = "",
+        registering: bool = False,
+        auth_busy: bool = False,
+        authenticated: bool = False;
     active_style = "bg-primary text-primary-foreground shadow-sm" if active == "Timetables" else "text-muted-foreground hover:bg-muted";
     show_normal = service == "All services" or service == "Normal";
     show_semi = service == "All services" or service == "Semi-Luxury";
@@ -32,13 +36,55 @@ def:pub app() -> JsxElement {
     def enter_username(e: ChangeEvent) { username = e.target.value; }
     def enter_password(e: ChangeEvent) { password = e.target.value; }
     def switch_to(name: str) { active = name; notice = ""; show_login = False; }
-    def submit_login(e: FormEvent) {
+    async can with entry {
+        authenticated = jacIsLoggedIn();
+    }
+
+    async def submit_login(e: FormEvent) -> None {
         e.preventDefault();
+        login_message = "";
         if username.strip() == "" or password.strip() == "" {
             login_message = "Enter both your username and password.";
         } else {
-            login_message = "Demo interface only. Connect an authentication service to sign in securely.";
+            auth_busy = True;
+            if registering {
+                signup_result: dict | None = None;
+                login_ok: bool = False;
+                signup_result = await jacSignup(username.strip(), password);
+                if not signup_result["success"] {
+                    login_message = "Registration failed. This username may already be in use.";
+                } else {
+                    login_ok = await jacLogin(username.strip(), password);
+                    if login_ok {
+                        authenticated = True;
+                        show_login = False;
+                        login_message = "Account created and signed in.";
+                    } else {
+                        login_message = "Account created, but sign in failed. Please sign in.";
+                        registering = False;
+                    }
+                }
+            } else {
+                login_ok: bool = False;
+                login_ok = await jacLogin(username.strip(), password);
+                if login_ok {
+                    authenticated = True;
+                    show_login = False;
+                    login_message = "Signed in successfully.";
+                } else {
+                    login_message = "Unable to sign in. Check your username and password.";
+                }
+            }
+            auth_busy = False;
         }
+    }
+
+    def logout_user(e: MouseEvent) {
+        jacLogout();
+        authenticated = False;
+        username = "";
+        password = "";
+        login_message = "You have signed out.";
     }
 
     return <div className="min-h-screen bg-muted/40 text-foreground">
@@ -49,7 +95,13 @@ def:pub app() -> JsxElement {
                     <span><strong className="block text-lg leading-tight tracking-tight">Gamana</strong><small className="text-xs text-muted-foreground">Sri Lanka bus guide</small></span>
                 </a>
                 <div className="ml-auto flex items-center gap-3">
-                    <button className="whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted" onClick={lambda { show_login = not show_login; login_message = ""; }}>Sign in</button>
+                    {if authenticated {
+                        <span className="hidden text-sm text-muted-foreground sm:inline">Signed in as {username}</span>
+                        <button className="whitespace-nowrap rounded-lg border px-3 py-2 text-sm font-medium hover:bg-muted" onClick={logout_user}>Log out</button>
+                    } else {
+                        <button className="whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted" onClick={lambda { show_login = True; registering = False; login_message = ""; }}>Sign in</button>
+                        <button className="whitespace-nowrap rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground" onClick={lambda { show_login = True; registering = True; login_message = ""; }}>Create account</button>
+                    }}
                 </div>
                 <nav className="flex w-full gap-1 overflow-x-auto pb-1 sm:ml-auto sm:w-auto" aria-label="Bus guide sections">
                     <button className={"rounded-lg px-3 py-2 text-sm font-medium " + active_style} onClick={lambda { switch_to("Timetables"); }}>Timetables</button>
@@ -76,12 +128,13 @@ def:pub app() -> JsxElement {
                     </div>
                     <div className="flex items-center justify-center p-6 sm:p-10">
                         <form className="flex w-full max-w-sm flex-col gap-5" onSubmit={submit_login}>
-                            <div><h2 className="text-2xl font-semibold tracking-tight">Sign in</h2><p className="mt-1 text-sm text-muted-foreground">Enter your username and password.</p></div>
+                            <div><h2 className="text-2xl font-semibold tracking-tight">{"Create your account" if registering else "Sign in"}</h2><p className="mt-1 text-sm text-muted-foreground">{"Register with a username and password." if registering else "Enter your username and password."}</p></div>
                             <label className="flex flex-col gap-2 text-sm font-medium">Username<input className="h-11 rounded-md border border-input bg-background px-3 font-normal" autoComplete="username" placeholder="Your username" value={username} onChange={enter_username} /></label>
                             <label className="flex flex-col gap-2 text-sm font-medium">Password<input className="h-11 rounded-md border border-input bg-background px-3 font-normal" type="password" autoComplete="current-password" placeholder="Your password" value={password} onChange={enter_password} /></label>
-                            <button className="h-11 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm" type="submit">Sign in</button>
+                            <button className="h-11 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm" type="submit" disabled={auth_busy}>{"Creating account..." if auth_busy and registering else "Signing in..." if auth_busy else "Create account" if registering else "Sign in"}</button>
                             {if login_message != "" { <p className="rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground" role="status">{login_message}</p> }}
-                            <button className="text-sm font-medium text-primary hover:underline" type="button" onClick={lambda { show_login = False; login_message = ""; }}>Return to bus guide</button>
+                            <button className="text-sm font-medium text-primary hover:underline" type="button" onClick={lambda { registering = not registering; login_message = ""; }}>{"Already have an account? Sign in" if registering else "New to Gamana? Create an account"}</button>
+                            <button className="text-sm text-muted-foreground hover:underline" type="button" onClick={lambda { show_login = False; registering = False; login_message = ""; }}>Return to bus guide</button>
                         </form>
                     </div>
                 </section>
