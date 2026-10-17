@@ -1,221 +1,125 @@
 import ".styles.global.css";
 import from "@jac/runtime" { jacLogin, jacSignup, jacLogout, jacIsLoggedIn }
 
+glob destinations: list[str] = ["Colombo (Pettah)", "Kandy", "Matara", "Galle", "Makumbura (Kottawa)", "Anuradhapura", "Jaffna", "Nuwara Eliya", "Kadawatha", "Nittambuwa", "Kurunegala", "Peradeniya"];
 glob route_names: list[str] = ["01 · Colombo – Kandy", "02 · Colombo – Matara", "EX1 · Makumbura – Matara Expressway", "138 · Colombo – Makumbura", "15 · Colombo – Anuradhapura", "87 · Colombo – Jaffna", "43 · Kandy – Nuwara Eliya"];
-glob stops: list[str] = ["Colombo (Pettah)", "Kandy", "Matara", "Galle", "Makumbura (Kottawa)", "Anuradhapura", "Jaffna", "Nuwara Eliya", "Kadawatha", "Nittambuwa", "Kurunegala", "Peradeniya"];
-glob bus_services: list[str] = ["Normal", "Semi-Luxury", "A/C Luxury", "Expressway A/C"];
+glob service_names: list[str] = ["Normal", "Semi-Luxury", "A/C Luxury", "Expressway A/C"];
 
 def:pub app() -> JsxElement {
-    has active: str = "Timetables",
-        from_stop: str = "Colombo (Pettah)",
-        to_stop: str = "Kandy",
-        service: str = "All services",
-        selected_route: str = "01 · Colombo – Kandy",
-        departure_date: str = "2026-10-20",
-        passenger: str = "",
-        notice: str = "",
-        username: str = "",
-        password: str = "",
+    has authenticated: bool = False,
+        active: str = "Home",
         show_login: bool = False,
-        login_message: str = "",
         registering: bool = False,
         auth_busy: bool = False,
-        authenticated: bool = False,
-        selected_seat: int = 0,
-        bookings: list[str] = [],
-        confirm_logout: bool = False,
-        fare_class: str = "A/C Luxury";
-    active_style = "bg-primary text-primary-foreground shadow-sm" if active == "Timetables" else "text-muted-foreground hover:bg-muted";
-    fare_style = "bg-primary text-primary-foreground shadow-sm" if active == "Fares" else "text-muted-foreground hover:bg-muted";
-    planner_style = "bg-primary text-primary-foreground shadow-sm" if active == "Trip planner" else "text-muted-foreground hover:bg-muted";
-    booking_style = "bg-primary text-primary-foreground shadow-sm" if active == "Book a seat" else "text-muted-foreground hover:bg-muted";
-    bookings_style = "bg-primary text-primary-foreground shadow-sm" if active == "My bookings" else "text-muted-foreground hover:bg-muted";
-    show_normal = service == "All services" or service == "Normal";
-    show_semi = service == "All services" or service == "Semi-Luxury";
-    show_ac = service == "All services" or service == "A/C Luxury";
-    show_express = service == "All services" or service == "Expressway A/C";
+        username: str = "",
+        password: str = "",
+        auth_message: str = "",
+        origin: str = "Colombo (Pettah)",
+        destination: str = "Kandy",
+        travel_date: str = "2026-10-20",
+        service: str = "All services",
+        passenger: str = "",
+        seat: int = 0,
+        saved_bookings: list[str] = [],
+        notice: str = "",
+        confirm_logout: bool = False;
 
-    def choose_from(e: ChangeEvent) { from_stop = e.target.value; }
-    def choose_to(e: ChangeEvent) { to_stop = e.target.value; }
-    def choose_service(e: ChangeEvent) { service = e.target.value; }
-    def choose_route(e: ChangeEvent) { selected_route = e.target.value; }
-    def choose_date(e: ChangeEvent) { departure_date = e.target.value; }
-    def choose_fare_class(e: ChangeEvent) { fare_class = e.target.value; }
-    def choose_seat(n: int) { selected_seat = n; }
+    async can with entry { authenticated = jacIsLoggedIn(); }
+    def set_origin(e: ChangeEvent) { origin = e.target.value; }
+    def set_destination(e: ChangeEvent) { destination = e.target.value; }
+    def set_date(e: ChangeEvent) { travel_date = e.target.value; }
+    def set_service(e: ChangeEvent) { service = e.target.value; }
+    def set_passenger(e: ChangeEvent) { passenger = e.target.value; }
+    def set_username(e: ChangeEvent) { username = e.target.value; }
+    def set_password(e: ChangeEvent) { password = e.target.value; }
+    def set_seat(n: int) { seat = n; }
     def confirm_booking(e: FormEvent) {
         e.preventDefault();
-        if passenger.strip() == "" { notice = "Enter the passenger name to continue."; }
-        elif selected_seat == 0 { notice = "Choose a seat before confirming."; }
-        else {
-            bookings = bookings + [selected_route + " · " + from_stop + " to " + to_stop + " · Seat " + str(selected_seat) + " · " + passenger.strip() + " · " + departure_date];
-            notice = "Sample booking saved for seat " + str(selected_seat) + ".";
-            active = "My bookings";
-            selected_seat = 0;
-            passenger = "";
-        }
-    }
-    def pick_seat(n: int) { selected_seat = n; notice = "Seat " + str(n) + " selected."; }
-    def enter_passenger(e: ChangeEvent) { passenger = e.target.value; }
-    def enter_username(e: ChangeEvent) { username = e.target.value; }
-    def enter_password(e: ChangeEvent) { password = e.target.value; }
-    def switch_to(name: str) { active = name; notice = ""; show_login = False; }
-    async can with entry {
-        authenticated = jacIsLoggedIn();
+        if passenger.strip() == "" { notice = "Enter your name before booking."; }
+        elif seat == 0 { notice = "Select a seat before booking."; }
+        else { saved_bookings = saved_bookings + [origin + " to " + destination + " · Seat " + str(seat) + " · " + passenger.strip() + " · " + travel_date]; notice = "Booking saved."; active = "My bookings"; seat = 0; passenger = ""; }
     }
 
-    async def submit_login(e: FormEvent) -> None {
+    def navigate_to(view: str) {
+        if not authenticated { show_login = True; registering = False; auth_message = "Sign in to access travel tools."; }
+        else { active = view; notice = ""; }
+    }
+
+    def search_trips(e: FormEvent) {
         e.preventDefault();
-        login_message = "";
-        if username.strip() == "" or password.strip() == "" {
-            login_message = "Enter both your username and password.";
-        } else {
+        if origin == destination { notice = "Choose two different towns."; }
+        elif not authenticated { show_login = True; registering = False; auth_message = "Sign in to view schedules for this journey."; }
+        else { active = "Timetables"; }
+    }
+
+    async def submit_auth(e: FormEvent) {
+        e.preventDefault();
+        auth_message = "";
+        if username.strip() == "" or password.strip() == "" { auth_message = "Enter a username and password."; }
+        else {
             auth_busy = True;
             if registering {
-                signup_result: dict | None = None;
-                login_ok: bool = False;
-                signup_result = await jacSignup(username.strip(), password);
-                if not signup_result["success"] {
-                    login_message = "Registration failed. This username may already be in use.";
-                } else {
-                    login_ok = await jacLogin(username.strip(), password);
-                    if login_ok {
-                        authenticated = True;
-                        show_login = False;
-                        login_message = "Account created and signed in.";
-                    } else {
-                        login_message = "Account created, but sign in failed. Please sign in.";
-                        registering = False;
-                    }
+                signup_response: dict | None = None;
+                signup_response = await jacSignup(username.strip(), password);
+                if not signup_response["success"] { auth_message = "Could not create account. Check the details or try another username."; }
+                else {
+                    login_result: bool = False;
+                    login_result = await jacLogin(username.strip(), password);
+                    if login_result { authenticated = True; show_login = False; active = "Timetables"; }
+                    else { registering = False; auth_message = "Account created. Sign in with your new credentials."; }
                 }
             } else {
-                login_ok: bool = False;
-                login_ok = await jacLogin(username.strip(), password);
-                if login_ok {
-                    authenticated = True;
-                    show_login = False;
-                    login_message = "Signed in successfully.";
-                } else {
-                    login_message = "Unable to sign in. Check your username and password.";
-                }
+                signed_in: bool = False;
+                signed_in = await jacLogin(username.strip(), password);
+                if signed_in { authenticated = True; show_login = False; active = "Timetables"; }
+                else { auth_message = "Sign-in failed. Check your username and password."; }
             }
             auth_busy = False;
         }
     }
 
-    def logout_user(e: MouseEvent) { confirm_logout = True; }
+    def do_logout(e: MouseEvent) { confirm_logout = True; }
     def cancel_logout(e: MouseEvent) { confirm_logout = False; }
-    def confirm_logout_now(e: MouseEvent) {
+    def finish_logout(e: MouseEvent) {
         jacLogout();
         authenticated = False;
         confirm_logout = False;
+        show_login = False;
+        active = "Home";
         username = "";
         password = "";
-        login_message = "You have signed out.";
-        show_login = False;
     }
-    distance = 116 if selected_route.startswith("01") else 160 if selected_route.startswith("02") else 127 if selected_route.startswith("EX1") else 205 if selected_route.startswith("15") else 396 if selected_route.startswith("87") else 77;
-    kms = distance if stops.index(from_stop) < stops.index(to_stop) else distance / 2;
-    fare_value = int(kms * 6) if fare_class == "A/C Luxury" else int(kms * 4.5) if fare_class == "Semi-Luxury" else int(kms * 3) if fare_class == "Normal" else int(kms * 8);
 
-    return <div className="min-h-screen bg-muted/40 text-foreground">
-        <header className="sticky top-0 z-20 border-b bg-card/95 shadow-sm backdrop-blur">
-            <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-4 px-4 py-3 sm:px-6">
-                <a href="#home" className="flex items-center gap-3 no-underline">
-                    <span className="flex size-10 items-center justify-center rounded-xl bg-primary text-lg font-bold text-primary-foreground">G</span>
-                    <span><strong className="block text-lg leading-tight tracking-tight">Gamana</strong><small className="text-xs text-muted-foreground">Sri Lanka bus guide</small></span>
-                </a>
-                <div className="ml-auto flex items-center gap-3">
-                    {confirm_logout and <span className="text-sm font-medium">Sign out of Gamana?</span>}
-                    {confirm_logout and <button className="rounded-lg border px-3 py-2 text-sm" onClick={cancel_logout}>Stay signed in</button>}
-                    {confirm_logout and <button className="rounded-lg bg-destructive px-3 py-2 text-sm font-semibold text-destructive-foreground" onClick={confirm_logout_now}>Confirm logout</button>}
-                    {if authenticated {
-                        <span className="hidden text-sm text-muted-foreground sm:inline">Signed in as {username}</span>
-                        <button className="whitespace-nowrap rounded-lg border px-3 py-2 text-sm font-medium hover:bg-muted" onClick={logout_user}>Log out</button>
-                    } else {
-                        <button className="whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted" onClick={lambda { show_login = True; registering = False; login_message = ""; }}>Sign in</button>
-                        <button className="whitespace-nowrap rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground" onClick={lambda { show_login = True; registering = True; login_message = ""; }}>Create account</button>
-                    }}
-                </div>
-                <nav className="flex w-full gap-1 overflow-x-auto pb-1 sm:ml-auto sm:w-auto" aria-label="Bus guide sections">
-                    <button className={"rounded-lg px-3 py-2 text-sm font-medium " + active_style} onClick={lambda { switch_to("Timetables"); }}>Timetables</button>
-                    <button className={"rounded-lg px-3 py-2 text-sm font-medium " + fare_style} onClick={lambda { switch_to("Fares"); }}>Fares</button>
-                    <button className={"rounded-lg px-3 py-2 text-sm font-medium " + planner_style} onClick={lambda { switch_to("Trip planner"); }}>Trip planner</button>
-                    <button className={"rounded-lg px-3 py-2 text-sm font-medium " + booking_style} onClick={lambda { switch_to("Book a seat"); }}>Book a seat</button>
-                    <button className={"rounded-lg px-3 py-2 text-sm font-medium " + bookings_style} onClick={lambda { switch_to("My bookings"); }}>My bookings</button>
-                </nav>
+    if show_login and not authenticated {
+        return <div className="min-h-screen bg-[#090909] px-4 py-8 text-white sm:px-8">
+            <div className="mx-auto grid min-h-[80vh] max-w-5xl overflow-hidden rounded-3xl border border-white/10 bg-zinc-950 shadow-2xl md:grid-cols-2">
+                <section className="flex flex-col justify-between gap-10 bg-gradient-to-br from-red-950 to-black p-8 sm:p-12"><button className="flex items-center gap-3 self-start" onClick={lambda { show_login = False; active = "Home"; }}><span className="flex size-10 items-center justify-center rounded-xl bg-red-600 font-bold">G</span><span className="font-semibold">Gamana</span></button><div><p className="text-sm font-semibold uppercase tracking-widest text-red-300">Sri Lanka bus guide</p><h1 className="mt-4 text-4xl font-black leading-tight">Travel Sri Lanka on time.</h1><p className="mt-4 text-zinc-300">Sign in to access schedules, fare estimates, trip planning and seat bookings.</p></div><p className="text-xs text-zinc-400">Sample travel information. Confirm details with operators.</p></section>
+                <section className="flex items-center p-7 sm:p-12"><form className="flex w-full flex-col gap-5" onSubmit={submit_auth}><div><h2 className="text-2xl font-bold">{"Create your account" if registering else "Welcome back"}</h2><p className="mt-1 text-sm text-zinc-400">{"Register with a username and password." if registering else "Sign in to continue to your travel tools."}</p></div><label className="flex flex-col gap-2 text-sm font-medium">Username<input className="h-11 rounded-lg border border-white/10 bg-black px-3 text-white" placeholder="Your username" autoComplete="username" value={username} onChange={set_username} /></label><label className="flex flex-col gap-2 text-sm font-medium">Password<input className="h-11 rounded-lg border border-white/10 bg-black px-3 text-white" type="password" placeholder="Your password" autoComplete="current-password" value={password} onChange={set_password} /></label><button className="h-11 rounded-lg bg-red-600 font-bold hover:bg-red-500" disabled={auth_busy} type="submit">{"Please wait..." if auth_busy else "Create account" if registering else "Sign in"}</button>{auth_message != "" and <p className="rounded-lg bg-white/5 p-3 text-sm text-zinc-300" role="status">{auth_message}</p>}<button className="text-left text-sm text-red-300 hover:underline" type="button" onClick={lambda { registering = not registering; auth_message = ""; }}>{"Already have an account? Sign in" if registering else "New to Gamana? Create an account"}</button></form></section>
             </div>
-        </header>
-        <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:py-8">
-            <section className="relative overflow-hidden rounded-2xl bg-primary px-6 py-8 text-primary-foreground shadow-md sm:px-9 sm:py-10">
-                <p className="mb-2 text-sm font-medium text-primary-foreground/80">Travel across Sri Lanka</p>
-                <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">{active}</h1>
-                <p className="mt-3 max-w-2xl text-sm leading-relaxed text-primary-foreground/85 sm:text-base">Plan your bus journey with sample schedules, fare estimates and seat reservations in one place.</p>
-            </section>
-            <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-card px-4 py-3 text-sm text-muted-foreground shadow-sm"><span className="size-2 rounded-full bg-amber-500"></span>Sample information for demonstration. Confirm times and fares with NTC or SLTB before travelling.</div>
-            {if show_login {
-                <section className="grid min-h-[420px] gap-8 overflow-hidden rounded-2xl border bg-card shadow-sm lg:grid-cols-2">
-                    <div className="flex flex-col justify-between gap-10 bg-primary p-7 text-primary-foreground sm:p-10">
-                        <div className="flex items-center gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-primary-foreground/15 text-lg font-bold">G</span><span className="text-lg font-semibold">Gamana</span></div>
-                        <div className="flex flex-col gap-4"><p className="text-sm font-medium text-primary-foreground/75">Your journey, made simpler</p><h2 className="text-balance text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">Travel Sri Lanka with confidence.</h2><p className="max-w-md text-sm leading-relaxed text-primary-foreground/80">Keep your trip planning and bus travel information close at hand.</p></div>
-                        <p className="text-xs text-primary-foreground/70">Sample travel information. Confirm schedules with your bus operator.</p>
-                    </div>
-                    <div className="flex items-center justify-center p-6 sm:p-10">
-                        <form className="flex w-full max-w-sm flex-col gap-5" onSubmit={submit_login}>
-                            <div><h2 className="text-2xl font-semibold tracking-tight">{"Create your account" if registering else "Sign in"}</h2><p className="mt-1 text-sm text-muted-foreground">{"Register with a username and password." if registering else "Enter your username and password."}</p></div>
-                            <label className="flex flex-col gap-2 text-sm font-medium">Username<input className="h-11 rounded-md border border-input bg-background px-3 font-normal" autoComplete="username" placeholder="Your username" value={username} onChange={enter_username} /></label>
-                            <label className="flex flex-col gap-2 text-sm font-medium">Password<input className="h-11 rounded-md border border-input bg-background px-3 font-normal" type="password" autoComplete="current-password" placeholder="Your password" value={password} onChange={enter_password} /></label>
-                            <button className="h-11 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm" type="submit" disabled={auth_busy}>{"Creating account..." if auth_busy and registering else "Signing in..." if auth_busy else "Create account" if registering else "Sign in"}</button>
-                            {if login_message != "" { <p className="rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground" role="status">{login_message}</p> }}
-                            <button className="text-sm font-medium text-primary hover:underline" type="button" onClick={lambda { registering = not registering; login_message = ""; }}>{"Already have an account? Sign in" if registering else "New to Gamana? Create an account"}</button>
-                            <button className="text-sm text-muted-foreground hover:underline" type="button" onClick={lambda { show_login = False; registering = False; login_message = ""; }}>Return to bus guide</button>
-                        </form>
-                    </div>
-                </section>
-            } elif active == "Fares" {
-                <section className="flex flex-col gap-5">
-                    <div><h2 className="text-xl font-semibold">Fare estimator</h2><p className="text-sm text-muted-foreground">Estimate your fare by route, stops and service class.</p></div>
-                    <div className="grid gap-4 rounded-xl border bg-card p-5 shadow-sm sm:grid-cols-2 lg:grid-cols-4">
-                        <label className="flex flex-col gap-2 text-sm font-medium">Route<select className="h-10 rounded-md border border-input bg-background px-3 font-normal" value={selected_route} onChange={choose_route}>{for (i, route) in enumerate(route_names) { <option key={str(i)} value={route}>{route}</option> }}</select></label>
-                        <label className="flex flex-col gap-2 text-sm font-medium">From<select className="h-10 rounded-md border border-input bg-background px-3 font-normal" value={from_stop} onChange={choose_from}>{for (i, stop) in enumerate(stops) { <option key={str(i)} value={stop}>{stop}</option> }}</select></label>
-                        <label className="flex flex-col gap-2 text-sm font-medium">To<select className="h-10 rounded-md border border-input bg-background px-3 font-normal" value={to_stop} onChange={choose_to}>{for (i, stop) in enumerate(stops) { <option key={str(i)} value={stop}>{stop}</option> }}</select></label>
-                        <label className="flex flex-col gap-2 text-sm font-medium">Service class<select className="h-10 rounded-md border border-input bg-background px-3 font-normal" value={fare_class} onChange={choose_fare_class}>{for (i, svc) in enumerate(bus_services) { <option key={str(i)} value={svc}>{svc}</option> }}</select></label>
-                    </div>
-                    <article className="rounded-xl border bg-card p-6 shadow-sm"><p className="text-sm text-muted-foreground">Estimated one-way fare</p><p className="mt-2 text-4xl font-semibold tabular-nums">Rs. {str(fare_value)}</p><p className="mt-2 text-sm text-muted-foreground">{from_stop} to {to_stop} · approx. {str(kms)} km · {fare_class}</p></article>
-                    <p className="text-xs text-muted-foreground">Estimate only. Confirm fares with NTC or SLTB before travelling.</p>
-                </section>
-            } elif active == "Trip planner" {
-                <section className="grid gap-5 lg:grid-cols-[1fr_0.9fr]">
-                    <div className="rounded-xl border bg-card p-5 shadow-sm"><h2 className="text-xl font-semibold">Plan your trip</h2><p className="mt-1 text-sm text-muted-foreground">Choose an origin and destination for a suggested sample itinerary.</p><div className="mt-5 grid gap-4 sm:grid-cols-2"><label className="flex flex-col gap-2 text-sm font-medium">From<select className="h-10 rounded-md border border-input bg-background px-3" value={from_stop} onChange={choose_from}>{for (i, stop) in enumerate(stops) { <option key={str(i)} value={stop}>{stop}</option> }}</select></label><label className="flex flex-col gap-2 text-sm font-medium">To<select className="h-10 rounded-md border border-input bg-background px-3" value={to_stop} onChange={choose_to}>{for (i, stop) in enumerate(stops) { <option key={str(i)} value={stop}>{stop}</option> }}</select></label><label className="flex flex-col gap-2 text-sm font-medium">Travel date<input className="h-10 rounded-md border border-input bg-background px-3" type="date" value={departure_date} onChange={choose_date} /></label></div><button className="mt-5 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground" onClick={lambda { notice = "Journey updated for " + from_stop + " to " + to_stop + "."; }}>Show itinerary</button></div>
-                    <article className="rounded-xl border bg-card p-5 shadow-sm"><h2 className="text-lg font-semibold">Suggested itinerary</h2><p className="mt-1 text-sm text-muted-foreground">Route 01 · sample schedule</p><div className="mt-5 flex flex-col gap-5 border-l-2 border-primary/30 pl-5"><div><strong>{from_stop}</strong><p className="text-xs text-muted-foreground">Depart 05:00</p></div><div><strong>Direct bus</strong><p className="text-xs text-muted-foreground">Estimated journey time 3h 30m</p></div><div><strong>{to_stop}</strong><p className="text-xs text-muted-foreground">Arrive 08:30 · from Rs. 350</p></div></div></article>
-                    {if notice != "" { <p className="rounded-lg bg-primary/10 p-3 text-sm text-primary" role="status">{notice}</p> }}
-                </section>
-            } elif active == "Book a seat" {
-                <section className="grid gap-5 lg:grid-cols-[1fr_0.8fr]">
-                    <form className="rounded-xl border bg-card p-5 shadow-sm" onSubmit={confirm_booking}><h2 className="text-xl font-semibold">Reserve a seat</h2><p className="mt-1 text-sm text-muted-foreground">Select a trip and seat, then save a sample booking.</p><div className="mt-5 flex flex-col gap-4"><label className="flex flex-col gap-2 text-sm font-medium">Route<select className="h-10 rounded-md border border-input bg-background px-3 font-normal" value={selected_route} onChange={choose_route}>{for (i, route) in enumerate(route_names) { <option key={str(i)} value={route}>{route}</option> }}</select></label><label className="flex flex-col gap-2 text-sm font-medium">From<select className="h-10 rounded-md border border-input bg-background px-3" value={from_stop} onChange={choose_from}>{for (i, stop) in enumerate(stops) { <option key={str(i)} value={stop}>{stop}</option> }}</select></label><label className="flex flex-col gap-2 text-sm font-medium">To<select className="h-10 rounded-md border border-input bg-background px-3" value={to_stop} onChange={choose_to}>{for (i, stop) in enumerate(stops) { <option key={str(i)} value={stop}>{stop}</option> }}</select></label><label className="flex flex-col gap-2 text-sm font-medium">Travel date<input className="h-10 rounded-md border border-input bg-background px-3" type="date" value={departure_date} onChange={choose_date} /></label><label className="flex flex-col gap-2 text-sm font-medium">Passenger name<input className="h-10 rounded-md border border-input bg-background px-3" placeholder="Passenger full name" value={passenger} onChange={enter_passenger} /></label><button className="rounded-md bg-primary px-4 py-2.5 font-semibold text-primary-foreground" type="submit">Confirm booking</button>{if notice != "" { <p className="rounded-lg bg-primary/10 p-3 text-sm text-primary" role="status">{notice}</p> }}</div></form>
-                    <article className="rounded-xl border bg-card p-5 shadow-sm"><h2 className="text-lg font-semibold">Choose your seat</h2><p className="mt-1 text-sm text-muted-foreground">Selected seat: {str(selected_seat) if selected_seat > 0 else "None"}</p><div className="mt-5 grid grid-cols-4 gap-3">{for seat_no in range(1, 17) { <button key={str(seat_no)} className="aspect-square rounded-lg border bg-background text-sm font-semibold hover:border-primary" type="button" onClick={lambda { pick_seat(seat_no); }}>{str(seat_no)}</button> }}</div><p className="mt-4 text-xs text-muted-foreground">Sample reservation only. No payment is taken.</p></article>
-                </section>
-            } elif active == "My bookings" {
-                <section className="rounded-xl border bg-card p-5 shadow-sm"><h2 className="text-xl font-semibold">My bookings</h2><p className="mt-1 text-sm text-muted-foreground">Sample bookings saved in this session.</p>{if len(bookings) == 0 { <p className="mt-5 rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">No bookings saved yet. Make a seat reservation to see it here.</p> }}{if len(bookings) > 0 { <div className="mt-5 flex flex-col gap-3">{for (i, booking) in enumerate(bookings) { <article key={str(i)} className="rounded-lg border bg-background p-4 text-sm">{booking}</article> }}</div> }}</section>
-            } else {
-            <section className="flex flex-col gap-5">
-                <div><h2 className="text-xl font-semibold tracking-tight">Find a bus</h2><p className="text-sm text-muted-foreground">Browse service options, departure times and estimated fares.</p></div>
-                <div className="grid gap-4 rounded-xl border bg-card p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-4">
-                    <label className="flex flex-col gap-2 text-sm font-medium">Route<select className="h-10 rounded-md border border-input bg-background px-3 font-normal" value={selected_route} onChange={choose_route}>{for (i, route) in enumerate(route_names) { <option key={str(i)} value={route}>{route}</option> }}</select></label>
-                    <label className="flex flex-col gap-2 text-sm font-medium">From<select className="h-10 rounded-md border border-input bg-background px-3 font-normal" value={from_stop} onChange={choose_from}>{for stop in stops { <option value={stop}>{stop}</option> }}</select></label>
-                    <label className="flex flex-col gap-2 text-sm font-medium">To<select className="h-10 rounded-md border border-input bg-background px-3 font-normal" value={to_stop} onChange={choose_to}>{for stop in stops { <option value={stop}>{stop}</option> }}</select></label>
-                    <label className="flex flex-col gap-2 text-sm font-medium">Travel date<input className="h-10 rounded-md border border-input bg-background px-3 font-normal" type="date" value={departure_date} onChange={choose_date} /></label>
-                    <label className="flex flex-col gap-2 text-sm font-medium sm:col-span-2 lg:col-span-4">Service class<select className="h-10 rounded-md border border-input bg-background px-3 font-normal" value={service} onChange={choose_service}><option>All services</option>{for svc in bus_services { <option value={svc}>{svc}</option> }}</select></label>
-                </div>
-                <section className="overflow-hidden rounded-xl border bg-card shadow-sm">
-                    <div className="flex flex-wrap items-end justify-between gap-3 border-b px-5 py-4"><div><h2 className="text-lg font-semibold">Departures for {from_stop} to {to_stop}</h2><p className="mt-1 text-sm text-muted-foreground">{selected_route} · {departure_date}</p></div><span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">Approximate schedule</span></div>
-                    <div className="overflow-x-auto"><table className="w-full min-w-[650px] text-left text-sm"><thead className="bg-muted/60 text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="px-5 py-3">Departure</th><th className="px-5 py-3">Arrival</th><th className="px-5 py-3">Service</th><th className="px-5 py-3">Duration</th><th className="px-5 py-3">Estimated fare</th></tr></thead><tbody>{if show_normal { <tr className="border-t"><td className="px-5 py-4 font-semibold tabular-nums">05:00</td><td className="px-5 py-4 tabular-nums">08:30</td><td className="px-5 py-4">Normal</td><td className="px-5 py-4">3h 30m</td><td className="px-5 py-4 font-medium">Rs. 350</td></tr> }}{if show_semi { <tr className="border-t"><td className="px-5 py-4 font-semibold tabular-nums">06:00</td><td className="px-5 py-4 tabular-nums">09:30</td><td className="px-5 py-4">Semi-Luxury</td><td className="px-5 py-4">3h 30m</td><td className="px-5 py-4 font-medium">Rs. 525</td></tr> }}{if show_ac { <tr className="border-t"><td className="px-5 py-4 font-semibold tabular-nums">07:00</td><td className="px-5 py-4 tabular-nums">10:15</td><td className="px-5 py-4">A/C Luxury</td><td className="px-5 py-4">3h 15m</td><td className="px-5 py-4 font-medium">Rs. 700</td></tr> }}{if show_express { <tr className="border-t"><td className="px-5 py-4 font-semibold tabular-nums">08:00</td><td className="px-5 py-4 tabular-nums">10:00</td><td className="px-5 py-4">Expressway A/C</td><td className="px-5 py-4">2h 00m</td><td className="px-5 py-4 font-medium">Rs. 1,020</td></tr> }}</tbody></table></div>
-                </section>
-                <div className="grid gap-4 sm:grid-cols-3"><article className="rounded-xl border bg-card p-5 shadow-sm"><p className="text-sm text-muted-foreground">Route distance</p><p className="mt-2 text-2xl font-semibold tabular-nums">116 km</p><p className="mt-1 text-xs text-muted-foreground">Colombo to Kandy</p></article><article className="rounded-xl border bg-card p-5 shadow-sm"><p className="text-sm text-muted-foreground">First bus</p><p className="mt-2 text-2xl font-semibold tabular-nums">04:30</p><p className="mt-1 text-xs text-muted-foreground">Daily sample schedule</p></article><article className="rounded-xl border bg-card p-5 shadow-sm"><p className="text-sm text-muted-foreground">Service options</p><p className="mt-2 text-2xl font-semibold tabular-nums">3</p><p className="mt-1 text-xs text-muted-foreground">Normal, semi-luxury and A/C</p></article></div>
-                <div className="grid gap-4 sm:grid-cols-2"><article className="rounded-xl border bg-card p-5 shadow-sm"><h2 className="text-lg font-semibold">Popular routes</h2>{for route in route_names { <p className="border-b py-3 text-sm last:border-0">{route}</p> }}</article><article className="rounded-xl border bg-card p-5 shadow-sm"><h2 className="text-lg font-semibold">Plan your next ride</h2><p className="mt-2 text-sm text-muted-foreground">Explore fare estimates, plan a journey, or reserve a sample seat.</p><button className="mt-4 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground" onClick={lambda { switch_to("Trip planner"); }}>Open trip planner</button></article></div>
-                {if notice != "" { <p className="rounded-lg bg-primary/10 p-3 text-sm text-primary" role="status">{notice}</p> }}
-            </section>
-            }}
-            <footer className="border-t pt-5 text-center text-xs text-muted-foreground">Gamana · Sri Lanka bus timetables, fares and bookings</footer>
-        </main>
-    </div>;
+        </div>;
+    }
+
+    if active == "Home" {
+        return <div className="min-h-screen bg-[#080808] text-white">
+            <header className="mx-auto flex max-w-7xl flex-wrap items-center gap-4 px-4 py-4 sm:px-6"><button className="flex items-center gap-3" onClick={lambda { active = "Home"; }}><span className="flex size-10 items-center justify-center rounded-xl bg-red-600 text-lg font-bold">G</span><span><strong className="block text-lg">Gamana</strong><small className="text-xs text-zinc-400">Sri Lanka bus guide</small></span></button><div className="ml-auto flex gap-2"><button className="rounded-lg border border-white/15 px-4 py-2 text-sm text-zinc-300 hover:bg-white/5" onClick={lambda { show_login = True; registering = False; auth_message = ""; }}>Sign in</button><button className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold hover:bg-red-500" onClick={lambda { show_login = True; registering = True; auth_message = ""; }}>Create account</button></div></header>
+            <main className="mx-auto flex max-w-7xl flex-col gap-10 px-4 pb-12 sm:px-6">
+                <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-black px-5 py-12 sm:px-10 sm:py-16 lg:px-16"><div className="pointer-events-none absolute inset-0 bg-[radial-gradient(50%_50%_at_88%_10%,rgba(220,0,24,0.28),transparent)]"></div><div className="pointer-events-none absolute inset-0 opacity-20 [background-image:linear-gradient(rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.05)_1px,transparent_1px)] [background-size:72px_72px]"></div><div className="relative mx-auto flex max-w-5xl flex-col items-center gap-7 text-center"><p className="text-xs font-bold uppercase tracking-[0.24em] text-zinc-400"><span className="mr-2 inline-block size-2 rounded-full bg-red-600"></span>Bus travel across Sri Lanka</p><h1 className="text-balance text-5xl font-black leading-[0.98] tracking-tight sm:text-6xl lg:text-8xl">Travel Sri Lanka<br/><span className="text-red-600">on time.</span></h1><p className="max-w-2xl text-base leading-relaxed text-zinc-400 sm:text-xl">Check schedules, compare fares, choose your seat and plan your bus journey in one place.</p><form className="mt-3 grid w-full gap-3 rounded-2xl border border-white/10 bg-zinc-900/90 p-3 text-left shadow-2xl sm:grid-cols-2 sm:p-4 lg:grid-cols-[1fr_1fr_0.8fr_auto]" onSubmit={search_trips}><label className="flex flex-col gap-2 px-2 text-[11px] font-bold uppercase tracking-[0.16em] text-zinc-500">From<select className="h-11 rounded-lg border border-white/10 bg-zinc-950 px-3 text-sm font-semibold normal-case tracking-normal text-white" value={origin} onChange={set_origin}>{for (i, stop) in enumerate(destinations) { <option key={str(i)} value={stop}>{stop}</option> }}</select></label><label className="flex flex-col gap-2 px-2 text-[11px] font-bold uppercase tracking-[0.16em] text-zinc-500">Destination<select className="h-11 rounded-lg border border-white/10 bg-zinc-950 px-3 text-sm font-semibold normal-case tracking-normal text-white" value={destination} onChange={set_destination}>{for (i, stop) in enumerate(destinations) { <option key={str(i)} value={stop}>{stop}</option> }}</select></label><label className="flex flex-col gap-2 px-2 text-[11px] font-bold uppercase tracking-[0.16em] text-zinc-500">Travel date<input className="h-11 rounded-lg border border-white/10 bg-zinc-950 px-3 text-sm font-semibold normal-case tracking-normal text-white" type="date" value={travel_date} onChange={set_date} /></label><button className="min-h-11 self-end rounded-xl bg-red-600 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-red-950/50 hover:bg-red-500" type="submit">Search buses</button></form><div className="flex flex-wrap items-center justify-center gap-2 text-sm text-zinc-500"><span className="px-2">Popular:</span><button type="button" className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-zinc-300 hover:border-red-700" onClick={lambda { origin = "Colombo (Pettah)"; destination = "Kandy"; }}>Colombo to Kandy</button><button type="button" className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-zinc-300 hover:border-red-700" onClick={lambda { origin = "Colombo (Pettah)"; destination = "Galle"; }}>Colombo to Galle</button><button type="button" className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-zinc-300 hover:border-red-700" onClick={lambda { origin = "Colombo (Pettah)"; destination = "Jaffna"; }}>Colombo to Jaffna</button><button type="button" className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-zinc-300 hover:border-red-700" onClick={lambda { origin = "Kandy"; destination = "Nuwara Eliya"; }}>Kandy to Nuwara Eliya</button></div>{notice != "" and <p className="text-sm text-red-300" role="alert">{notice}</p>}</div></section>
+                <section className="grid gap-4 sm:grid-cols-3"><article className="rounded-2xl border border-white/10 bg-zinc-950 p-5"><p className="text-sm text-zinc-400">Plan ahead</p><h2 className="mt-2 text-lg font-semibold">Timetables that fit your day</h2><p className="mt-1 text-sm text-zinc-500">See sample departures for popular routes.</p></article><article className="rounded-2xl border border-white/10 bg-zinc-950 p-5"><p className="text-sm text-zinc-400">Know the cost</p><h2 className="mt-2 text-lg font-semibold">Compare estimated fares</h2><p className="mt-1 text-sm text-zinc-500">Choose a service class before you go.</p></article><article className="rounded-2xl border border-white/10 bg-zinc-950 p-5"><p className="text-sm text-zinc-400">Ride with confidence</p><h2 className="mt-2 text-lg font-semibold">Reserve a sample seat</h2><p className="mt-1 text-sm text-zinc-500">Sign in to access seat booking and saved trips.</p></article></section>
+            </main>
+        </div>;
+    }
+
+    if not authenticated {
+        return <div className="min-h-screen bg-background p-6"><section className="mx-auto flex max-w-xl flex-col gap-4 rounded-2xl border bg-card p-8 text-center shadow-sm"><h1 className="text-2xl font-semibold">Sign in to continue</h1><p className="text-sm text-muted-foreground">Internal schedules, fares and booking tools are available after sign-in.</p><button className="rounded-lg bg-primary px-5 py-3 font-semibold text-primary-foreground" onClick={lambda { show_login = True; registering = False; auth_message = ""; }}>Sign in</button><button className="text-sm text-primary hover:underline" onClick={lambda { active = "Home"; }}>Back to home</button></section></div>;
+    }
+
+    fare_amount = int(116 * 6) if service == "A/C Luxury" else int(116 * 4.5) if service == "Semi-Luxury" else int(116 * 3);
+    return <div className="min-h-screen bg-muted/40 text-foreground">
+        <header className="sticky top-0 z-20 border-b bg-card shadow-sm"><div className="mx-auto flex max-w-7xl flex-wrap items-center gap-3 px-4 py-3 sm:px-6"><button className="flex items-center gap-3" onClick={lambda { active = "Home"; }}><span className="flex size-10 items-center justify-center rounded-xl bg-primary font-bold text-primary-foreground">G</span><span><strong className="block">Gamana</strong><small className="text-xs text-muted-foreground">Signed in as {username}</small></span></button><nav className="ml-auto flex gap-1 overflow-x-auto">{for (i, page) in enumerate(["Timetables", "Fares", "Trip planner", "Book a seat", "My bookings"]) { <button key={str(i)} className="whitespace-nowrap rounded-lg px-3 py-2 text-sm hover:bg-muted" onClick={lambda { navigate_to(page); }}>{page}</button> }}</nav><button className="rounded-lg border px-3 py-2 text-sm" onClick={do_logout}>Log out</button>{confirm_logout and <button className="rounded-lg bg-destructive px-3 py-2 text-sm text-destructive-foreground" onClick={finish_logout}>Confirm logout</button>}</div></header>
+        <main className="mx-auto flex max-w-7xl flex-col gap-5 px-4 py-6 sm:px-6"><h1 className="text-3xl font-bold">{active}</h1>
+        {if active == "Fares" { <section className="rounded-2xl border bg-card p-6 shadow-sm"><h2 className="text-xl font-semibold">Fare estimate</h2><div className="mt-4 grid gap-4 sm:grid-cols-3"><label className="flex flex-col gap-2 text-sm">From<select className="rounded-lg border bg-background p-3" value={origin} onChange={set_origin}>{for (i, stop) in enumerate(destinations) { <option key={str(i)} value={stop}>{stop}</option> }}</select></label><label className="flex flex-col gap-2 text-sm">To<select className="rounded-lg border bg-background p-3" value={destination} onChange={set_destination}>{for (i, stop) in enumerate(destinations) { <option key={str(i)} value={stop}>{stop}</option> }}</select></label><label className="flex flex-col gap-2 text-sm">Service<select className="rounded-lg border bg-background p-3" value={service} onChange={set_service}>{for (i, item) in enumerate(service_names) { <option key={str(i)} value={item}>{item}</option> }}</select></label></div><p className="mt-5 text-3xl font-bold">Estimated fare: Rs. {str(fare_amount)}</p></section> }}
+        {if active == "Trip planner" { <section className="rounded-2xl border bg-card p-6 shadow-sm"><h2 className="text-xl font-semibold">Suggested trip</h2><p className="mt-3">{origin} to {destination}</p><p className="mt-2 text-sm text-muted-foreground">Direct sample service · depart 05:00 · arrive 08:30 · {travel_date}</p></section> }}
+        {if active == "Book a seat" { <section className="grid gap-5 lg:grid-cols-2"><form className="flex flex-col gap-4 rounded-2xl border bg-card p-6 shadow-sm" onSubmit={confirm_booking}><h2 className="text-xl font-semibold">Reserve a seat</h2><label className="flex flex-col gap-2 text-sm">Passenger name<input className="rounded-lg border bg-background p-3" value={passenger} onChange={set_passenger} placeholder="Your full name" /></label><p>Trip: {origin} to {destination} · {travel_date}</p><p>Selected seat: {str(seat) if seat > 0 else "None"}</p><button type="submit" className="rounded-lg bg-primary px-4 py-3 font-semibold text-primary-foreground">Confirm booking</button>{notice != "" and <p role="status" className="text-sm text-primary">{notice}</p>}</form><div className="grid grid-cols-4 gap-3 rounded-2xl border bg-card p-6">{for n in range(1, 17) { <button key={str(n)} type="button" className="aspect-square rounded-lg border hover:border-primary" onClick={lambda { set_seat(n); }}>{str(n)}</button> }}</div></section> }}
+        {if active == "My bookings" { <section className="rounded-2xl border bg-card p-6 shadow-sm"><h2 className="text-xl font-semibold">Saved bookings</h2>{if len(saved_bookings) == 0 { <p className="mt-4 text-sm text-muted-foreground">No bookings yet.</p> }}{for (i, booking) in enumerate(saved_bookings) { <p key={str(i)} className="mt-3 rounded-lg border p-4 text-sm">{booking}</p> }}</section> }}
+        {if active == "Timetables" { <section className="rounded-2xl border bg-card p-6 shadow-sm"><h2 className="text-xl font-semibold">Bus timetable</h2><p className="mt-2">{origin} to {destination} · {travel_date}</p><div className="mt-4 grid gap-3 sm:grid-cols-3"><p className="rounded-lg border p-4">05:00 · Normal · Rs. 350</p><p className="rounded-lg border p-4">06:00 · Semi-Luxury · Rs. 525</p><p className="rounded-lg border p-4">07:00 · A/C Luxury · Rs. 700</p></div></section> }}</main></div>;
 }
