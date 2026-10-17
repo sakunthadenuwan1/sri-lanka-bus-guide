@@ -12,7 +12,11 @@ def:pub app() -> JsxElement {
         selected_route: str = "01 · Colombo – Kandy",
         departure_date: str = "2026-10-20",
         passenger: str = "",
-        notice: str = "";
+        notice: str = "",
+        username: str = "",
+        password: str = "",
+        show_login: bool = False,
+        login_message: str = "";
     active_style = "bg-primary text-primary-foreground shadow-sm" if active == "Timetables" else "text-muted-foreground hover:bg-muted";
     show_normal = service == "All services" or service == "Normal";
     show_semi = service == "All services" or service == "Semi-Luxury";
@@ -25,7 +29,17 @@ def:pub app() -> JsxElement {
     def choose_route(e: ChangeEvent) { selected_route = e.target.value; }
     def choose_date(e: ChangeEvent) { departure_date = e.target.value; }
     def enter_passenger(e: ChangeEvent) { passenger = e.target.value; }
-    def switch_to(name: str) { active = name; notice = ""; }
+    def enter_username(e: ChangeEvent) { username = e.target.value; }
+    def enter_password(e: ChangeEvent) { password = e.target.value; }
+    def switch_to(name: str) { active = name; notice = ""; show_login = False; }
+    def submit_login(e: FormEvent) {
+        e.preventDefault();
+        if username.strip() == "" or password.strip() == "" {
+            login_message = "Enter both your username and password.";
+        } else {
+            login_message = "Demo interface only. Connect an authentication service to sign in securely.";
+        }
+    }
 
     return <div className="min-h-screen bg-muted/40 text-foreground">
         <header className="sticky top-0 z-20 border-b bg-card/95 shadow-sm backdrop-blur">
@@ -34,6 +48,9 @@ def:pub app() -> JsxElement {
                     <span className="flex size-10 items-center justify-center rounded-xl bg-primary text-lg font-bold text-primary-foreground">G</span>
                     <span><strong className="block text-lg leading-tight tracking-tight">Gamana</strong><small className="text-xs text-muted-foreground">Sri Lanka bus guide</small></span>
                 </a>
+                <div className="ml-auto flex items-center gap-3">
+                    <button className="whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted" onClick={lambda { show_login = not show_login; login_message = ""; }}>Sign in</button>
+                </div>
                 <nav className="flex w-full gap-1 overflow-x-auto pb-1 sm:ml-auto sm:w-auto" aria-label="Bus guide sections">
                     <button className={"rounded-lg px-3 py-2 text-sm font-medium " + active_style} onClick={lambda { switch_to("Timetables"); }}>Timetables</button>
                     <button className="rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted" onClick={lambda { switch_to("Fares"); }}>Fares</button>
@@ -50,6 +67,25 @@ def:pub app() -> JsxElement {
                 <p className="mt-3 max-w-2xl text-sm leading-relaxed text-primary-foreground/85 sm:text-base">Plan your bus journey with sample schedules, fare estimates and seat reservations in one place.</p>
             </section>
             <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-card px-4 py-3 text-sm text-muted-foreground shadow-sm"><span className="size-2 rounded-full bg-amber-500"></span>Sample information for demonstration. Confirm times and fares with NTC or SLTB before travelling.</div>
+            {if show_login {
+                <section className="grid min-h-[420px] gap-8 overflow-hidden rounded-2xl border bg-card shadow-sm lg:grid-cols-2">
+                    <div className="flex flex-col justify-between gap-10 bg-primary p-7 text-primary-foreground sm:p-10">
+                        <div className="flex items-center gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-primary-foreground/15 text-lg font-bold">G</span><span className="text-lg font-semibold">Gamana</span></div>
+                        <div className="flex flex-col gap-4"><p className="text-sm font-medium text-primary-foreground/75">Your journey, made simpler</p><h2 className="text-balance text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">Travel Sri Lanka with confidence.</h2><p className="max-w-md text-sm leading-relaxed text-primary-foreground/80">Keep your trip planning and bus travel information close at hand.</p></div>
+                        <p className="text-xs text-primary-foreground/70">Sample travel information. Confirm schedules with your bus operator.</p>
+                    </div>
+                    <div className="flex items-center justify-center p-6 sm:p-10">
+                        <form className="flex w-full max-w-sm flex-col gap-5" onSubmit={submit_login}>
+                            <div><h2 className="text-2xl font-semibold tracking-tight">Sign in</h2><p className="mt-1 text-sm text-muted-foreground">Enter your username and password.</p></div>
+                            <label className="flex flex-col gap-2 text-sm font-medium">Username<input className="h-11 rounded-md border border-input bg-background px-3 font-normal" autoComplete="username" placeholder="Your username" value={username} onChange={enter_username} /></label>
+                            <label className="flex flex-col gap-2 text-sm font-medium">Password<input className="h-11 rounded-md border border-input bg-background px-3 font-normal" type="password" autoComplete="current-password" placeholder="Your password" value={password} onChange={enter_password} /></label>
+                            <button className="h-11 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm" type="submit">Sign in</button>
+                            {if login_message != "" { <p className="rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground" role="status">{login_message}</p> }}
+                            <button className="text-sm font-medium text-primary hover:underline" type="button" onClick={lambda { show_login = False; login_message = ""; }}>Return to bus guide</button>
+                        </form>
+                    </div>
+                </section>
+            } else {
             <section className="flex flex-col gap-5">
                 <div><h2 className="text-xl font-semibold tracking-tight">Find a bus</h2><p className="text-sm text-muted-foreground">Browse service options, departure times and estimated fares.</p></div>
                 <div className="grid gap-4 rounded-xl border bg-card p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-4">
@@ -67,6 +103,7 @@ def:pub app() -> JsxElement {
                 <div className="grid gap-4 sm:grid-cols-2"><article className="rounded-xl border bg-card p-5 shadow-sm"><h2 className="text-lg font-semibold">Popular routes</h2>{for route in route_names { <p className="border-b py-3 text-sm last:border-0">{route}</p> }}</article><article className="rounded-xl border bg-card p-5 shadow-sm"><h2 className="text-lg font-semibold">Plan your next ride</h2><p className="mt-2 text-sm text-muted-foreground">Explore fare estimates, plan a journey, or reserve a sample seat.</p><button className="mt-4 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground" onClick={lambda { switch_to("Trip planner"); }}>Open trip planner</button></article></div>
                 {if notice != "" { <p className="rounded-lg bg-primary/10 p-3 text-sm text-primary" role="status">{notice}</p> }}
             </section>
+            }}
             <footer className="border-t pt-5 text-center text-xs text-muted-foreground">Gamana · Sri Lanka bus timetables, fares and bookings</footer>
         </main>
     </div>;
